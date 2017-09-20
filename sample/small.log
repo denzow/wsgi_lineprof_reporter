@@ -1,0 +1,50 @@
+Time unit: 1e-06 [sec]
+
+File: /home/XXXXXXXXXXXXXX/python/app.py
+Name: get_initialize
+Total time: 2e-06 [sec]
+  Line      Hits         Time  Code
+===================================
+   278                         @app.route('/initialize')
+   279                         def get_initialize():
+   280         1         9837      cur = db().cursor()
+   281         1          284      cur.execute('DELETE FROM users WHERE id > 5000')
+   282         1          225      cur.execute('DELETE FROM products WHERE id > 10000')
+   283         1         3487      cur.execute('DELETE FROM comments WHERE id > 200000')
+   284         1         4803      cur.execute('DELETE FROM histories WHERE id > 500000')
+   285         1            0      return ("Finish")
+
+Time unit: 1e-06 [sec]
+
+File: /home/XXXXXXXXXXXXXX/python/app.py
+Name: get_index
+Total time: 0.178491 [sec]
+  Line      Hits         Time  Code
+===================================
+   192                         @app.route('/')
+   193                         def get_index():
+   194         1          191      page = int(request.args.get('page', 0))
+   195         1         2333      cur = db().cursor()
+   196         1            1      cur.execute("""
+   197                             SELECT
+   198                             id,
+   199                             name,
+   200                             image_path,
+   201                             price,
+   202                             description,
+   203                             created_at
+   204                             FROM
+   205                                 products p
+   206                             ORDER BY  id DESC LIMIT 50 OFFSET {}
+   207         1         2580      """.format(page * 50))
+   208         1            9      products = cur.fetchall()
+   209         1           54      product_id_list = [str(x["id"]) for x in products]
+   210         1        29017      comment_data = get_all_comments(product_id_list)
+   211
+   212        51           27      for product in products:
+   213        50           64          product['description'] = product['description'][:70]
+   214        50          183          product['created_at'] = to_jst(product['created_at'])
+   215        50           50          product['comments'] = comment_data.get(product['id'])[:5]#get_comments(product['id'])
+   216        50           42          product['comments_count'] = len(comment_data.get(product['id'])) #get_comments_count(product['id'])
+   217
+   218         1       143940      return render_template('index.html', products=products, current_user=current_user())
