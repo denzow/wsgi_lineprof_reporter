@@ -19,7 +19,7 @@ wsgi_lineprof_reporter
 まだ**PyPi**には登録できていません。リポジトリをそのままコピーされるか以下の様にスクリプトをそのまま取得してください。
 
 ```
-$ curl https://github.com/denzow/wsgi_lineprof_reporter/blob/master/wlreporter.py
+$ curl https://raw.githubusercontent.com/denzow/wsgi_lineprof_reporter/master/wlreporter.py > wlreporter.py
 ```
 
 使い方
