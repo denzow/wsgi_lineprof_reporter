@@ -135,6 +135,12 @@ def init():
     """
     parser = argparse.ArgumentParser(description='This script is parsing wsgi_lineprof result')
     parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version="wlreporter Version:{}".format(__VERSION__)
+    )
+    parser.add_argument(
         "-f",
         "--file",
         required=True,
@@ -156,9 +162,17 @@ def init():
         help="report name prefix. if not set, use profile log name."
     )
 
+    parser.add_argument(
+        "-e",
+        "--exclude",
+        nargs="*",
+        dest="exclude_patterns",
+        help="exclude patterns for line_data. ie.) app.py:120. -> app.py 120 row's total time is ignore."
+    )
+
     args = parser.parse_args()
 
-    return args.target_file, args.db_name, args.report_name_prefix
+    return args.target_file, args.db_name, args.report_name_prefix, args.exclude_patterns
 
 
 def parse(profiler_log_name):
@@ -338,7 +352,19 @@ def create_report(base_data, columns, report_name):
             f.write("{}\n".format("  ".join(row_data_list)))
 
 
-def report(db, report_file_name_prefix):
+def parse_exclude_patterns(raw_pattern_list):
+    """
+
+    :param list[str] raw_pattern_list:
+    :return:
+    """
+    if not raw_pattern_list:
+        return []
+    # line no cast to int. because comparing easily.
+    return [(x.split(":")[0], int(x.split(":")[1])) for x in raw_pattern_list]
+
+
+def report(db, report_file_name_prefix, exclude_pattern_list):
     """
     一般的な観点でのレポートを出力する。現時点では以下の2種類
 
@@ -347,6 +373,7 @@ def report(db, report_file_name_prefix):
 
     :param DbClass db: temporary database
     :param str report_file_name_prefix: report name prefix
+    :param list exclude_pattern_list:
     :return:
     """
     # 関数ごとに経過時間や平均などを集計
@@ -376,7 +403,7 @@ def report(db, report_file_name_prefix):
         sum(hits) as hits,
         round(min(cast(time as float) / hits), 3) as min_time,
         round(max(cast(time as float) / hits), 3) as max_time,
-        round(sum(cast(time as float))/ sum(hits), 3) as per_time,
+        round(sum(cast(time as float))/ sum(hits), 3) as avg_per_time,
         sum(time) as total_time,
         (
             select
@@ -400,9 +427,24 @@ def report(db, report_file_name_prefix):
     summary_data = [dict(row) for row in db.execute(func_list_with_time_sql).fetchall()]  # type: list[dict]
     # add graph column
     line_data = [dict(row) for row in db.execute(whole_line_with_time_sql).fetchall()]  # type: list[dict]
+
     # add graph column
-    max_time = max([row["total_time"] for row in line_data])
-    [row.update(graph=round(row["total_time"]*10/max_time)*"*") for row in line_data]
+    exclude_pattern_data = parse_exclude_patterns(exclude_pattern_list)
+    if exclude_pattern_data:
+        max_time = max([row["total_time"] for row in line_data
+                        if (row["file_name"], row["line"]) not in exclude_pattern_data])
+    else:
+        max_time = max([row["total_time"] for row in line_data])
+
+    for row in line_data:
+        # max time line add ! to found easily.
+        if row["total_time"] == max_time:
+            row.update(graph="!" + round(row["total_time"] * 9 / max_time) * "*")
+        # if max_time exceeded, the lines must be ignore.
+        elif row["total_time"] > max_time:
+            row.update(graph="@IGNORE@")
+        else:
+            row.update(graph=round(row["total_time"] * 10 / max_time)*"*")
 
     # create summary report.
     create_report(
@@ -413,22 +455,22 @@ def report(db, report_file_name_prefix):
     # create line report.
     create_report(
         base_data=line_data,
-        columns=["file_name", "line", "min_time", "max_time", "per_time", "hits", "total_time", "graph", "code"],
+        columns=["file_name", "line", "min_time", "max_time", "avg_per_time", "hits", "total_time", "graph", "code"],
         report_name="{}_line_data.log".format(report_file_name_prefix)
     )
 
 
 if __name__ == "__main__":
-    target_file_name, target_db_name, report_name_prefix = init()
+    target_file_name, target_db_name, report_name_prefix, exclude_patterns = init()
     # テキスト形式のプロファイルログをDictに変換
     parsed_profile_data = parse(target_file_name)
     # 一旦SQLiteに格納し、各種集計・分析後にレポート出力
     with DbClass(target_db_name) as tmp_db:
         persist(tmp_db, parsed_profile_data)
+        prefix = target_file_name
         if report_name_prefix:
-            report(tmp_db, report_name_prefix)
-        else:
-            report(tmp_db, target_file_name)
+            prefix = report_name_prefix
+        report(tmp_db, prefix, exclude_patterns)
 
 
 

@@ -134,3 +134,9 @@ DBは破棄されますが`-d`でファイル名を指定することで分析�
 本スクリプトは[wsgi_lineprof](https://github.com/ymyzk/wsgi_lineprof)を前提としています。[wsgi_lineprof](https://github.com/ymyzk/wsgi_lineprof)の作者のymyzk様の
 お陰でWEBアプリのパフォーマンスチェックが快適になりました。
 
+TODO
+------------
+
+* PyPIへの登録
+* 複数レポートの差分比較
+* HTML でのグラフィカルレポートの追加
