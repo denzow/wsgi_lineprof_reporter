@@ -10,6 +10,8 @@ import argparse
 import re
 import sqlite3 as sqlite
 
+__VERSION__ = "0.2.0"
+
 
 class DbClass(object):
     """
@@ -323,9 +325,15 @@ def create_report(base_data, columns, report_name):
                 col_data = row_data[col]
                 # str is ljust, digit is rjust
                 if hasattr(col_data, "ljust"):
-                    row_data_list.append(col_data.ljust(max_length_dict[col]))
+                    if col_data:
+                        row_data_list.append(col_data.ljust(max_length_dict[col]))
+                    else:
+                        row_data_list.append("".ljust(max_length_dict[col]))
                 else:
-                    row_data_list.append(str(col_data).rjust(max_length_dict[col]))
+                    if col_data:
+                        row_data_list.append(str(col_data).rjust(max_length_dict[col]))
+                    else:
+                        row_data_list.append(str(0).rjust(max_length_dict[col]))
 
             f.write("{}\n".format("  ".join(row_data_list)))
 
@@ -348,6 +356,8 @@ def report(db, report_file_name_prefix):
         func_name,
         round(sum(total_time),5) as total_time,
         round(avg(total_time),5) as avg_time,
+        round(min(total_time),5) as min_time,
+        round(max(total_time),5) as max_time,
         count(*) as call_count
     from
         profile_data
@@ -355,7 +365,7 @@ def report(db, report_file_name_prefix):
         file_name,
         func_name
     order by
-        3 desc ,1,2
+        total_time desc ,1,2
     """
 
     # すべての行単位で集計
@@ -364,6 +374,9 @@ def report(db, report_file_name_prefix):
         file_name,
         line,
         sum(hits) as hits,
+        round(min(cast(time as float) / hits), 3) as min_time,
+        round(max(cast(time as float) / hits), 3) as max_time,
+        round(sum(cast(time as float))/ sum(hits), 3) as per_time,
         sum(time) as total_time,
         (
             select
@@ -394,13 +407,13 @@ def report(db, report_file_name_prefix):
     # create summary report.
     create_report(
         base_data=summary_data,
-        columns=["file_name", "func_name", "total_time", "avg_time", "call_count"],
+        columns=["file_name", "func_name", "total_time", "avg_time", "min_time", "max_time", "call_count"],
         report_name="{}_summary_data.log".format(report_file_name_prefix)
     )
     # create line report.
     create_report(
         base_data=line_data,
-        columns=["file_name", "line", "hits", "total_time", "graph", "code"],
+        columns=["file_name", "line", "min_time", "max_time", "per_time", "hits", "total_time", "graph", "code"],
         report_name="{}_line_data.log".format(report_file_name_prefix)
     )
 
