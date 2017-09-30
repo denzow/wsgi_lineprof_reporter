@@ -460,7 +460,7 @@ def report(db, report_file_name_prefix, exclude_pattern_list):
     )
 
 
-if __name__ == "__main__":
+def main():
     target_file_name, target_db_name, report_name_prefix, exclude_patterns = init()
     # テキスト形式のプロファイルログをDictに変換
     parsed_profile_data = parse(target_file_name)
@@ -472,5 +472,8 @@ if __name__ == "__main__":
             prefix = report_name_prefix
         report(tmp_db, prefix, exclude_patterns)
 
+
+if __name__ == "__main__":
+    main()
 
 

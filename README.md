@@ -9,17 +9,26 @@ wsgi_lineprof_reporter
 前提
 ------------
 
-本スクリプトはPython3.xの標準ライブラリのみで作成しているので依存ライブラリはありません。(おそらく)Python3が入った全ての環境で動作します。
-
-
+本スクリプトはPython3.xの標準ライブラリのみで作成しているので依存ライブラリはありません。
 
 インストール
 ------------
 
-まだ**PyPi**には登録できていません。リポジトリをそのままコピーされるか以下の様にスクリプトをそのまま取得してください。
+### PyPi
+
+以下のコマンドで簡単にインストールできます。インストールに成功すれば`wlreporter`コマンドが利用可能になります。
 
 ```
-$ curl https://raw.githubusercontent.com/denzow/wsgi_lineprof_reporter/master/wlreporter.py > wlreporter.py
+$ pip install wlreporter
+$ wlreporter -v
+```
+
+### 手動
+
+単一のスクリプトで動作します。以下を実行し、任意のディレクトリに配置して利用可能です。
+
+```
+$ curl https://raw.githubusercontent.com/denzow/wsgi_lineprof_reporter/master/wlreporter/wlreporter.py > wlreporter.py
 ```
 
 使い方
@@ -31,7 +40,7 @@ $ curl https://raw.githubusercontent.com/denzow/wsgi_lineprof_reporter/master/wl
 取得したファイルに対して以下のように実行します。
 
 ```bash
-$ python wlreporter.py -f /target/file/name.log
+$ wlreporter -f /target/file/name.log
 ```
 
 実行すると以下の2つのファイルが元ファイルと同じディレクトリに生成されます。
@@ -182,6 +191,6 @@ DBは破棄されますが`-d`でファイル名を指定することで分析�
 TODO
 ------------
 
-* PyPIへの登録
 * 複数レポートの差分比較
 * HTML でのグラフィカルレポートの追加
+* パフォーマンス改善
