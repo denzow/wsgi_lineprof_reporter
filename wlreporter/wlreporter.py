@@ -10,7 +10,7 @@ import argparse
 import re
 import sqlite3 as sqlite
 
-__VERSION__ = "0.2.0"
+__VERSION__ = "0.3.0"
 
 
 class DbClass(object):
@@ -135,11 +135,21 @@ def init():
     """
     parser = argparse.ArgumentParser(description='This script is parsing wsgi_lineprof result')
     parser.add_argument(
-        "-v",
+        "-V",
         "--version",
         action="version",
         version="wlreporter Version:{}".format(__VERSION__)
     )
+
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        default=False,
+        dest="is_verbose",
+        action="store_true",
+        help="get verbose line data report."
+    )
+
     parser.add_argument(
         "-f",
         "--file",
@@ -172,7 +182,7 @@ def init():
 
     args = parser.parse_args()
 
-    return args.target_file, args.db_name, args.report_name_prefix, args.exclude_patterns
+    return args.target_file, args.db_name, args.report_name_prefix, args.exclude_patterns, args.is_verbose
 
 
 def parse(profiler_log_name):
@@ -208,7 +218,7 @@ def parse(profiler_log_name):
     line_pattern = re.compile("^\s+(\d+)\s+(\d+)?\s+(\d+)?\s+(.+)")
 
     is_data = False
-    is_line_founded = False
+    is_line_found = False
     # code column start point , because code is not start with space.
     code_index = 0
     buf = {
@@ -219,51 +229,52 @@ def parse(profiler_log_name):
     }
 
     profile_data_list = []
-    for line in open(profiler_log_name):
-        # not need \n
-        line = line.rstrip("\n")
+    with open(profiler_log_name) as raw_log_file:
+        for line in raw_log_file:
+            # not need \n
+            line = line.rstrip("\n")
 
-        # start data block
-        if file_pattern.match(line):
-            is_data = True
-
-        # end data block and clear.
-        if is_data and empty_pattern.match(line):
-            is_data = False
-            is_line_founded = False
-            profile_data_list.append(buf)
-            buf = {
-                "file_name": None,
-                "func_name": None,
-                "total_time": None,
-                "lines": [],
-            }
-        if is_data:
+            # start data block
             if file_pattern.match(line):
-                buf["file_name"] = file_pattern.match(line).groups()[0]
-            if name_pattern.match(line):
-                buf["func_name"] = name_pattern.match(line).groups()[0]
-            if time_pattern.match(line):
-                buf["total_time"] = time_pattern.match(line).groups()[0]
+                is_data = True
 
-            # get line profile data
-            if line_pattern.match(line):
-                if not is_line_founded:
-                    code = line_pattern.match(line).groups()[-1]
-                    # save start point of code column. because python code have many space.
-                    code_index = line.find(code)
-                    is_line_founded = True
-                matcher = line_pattern.match(line).groups()
-                line_data = {
-                    "line": matcher[0],
-                    "hits": matcher[1] if matcher[1] else 0,
-                    "time": matcher[2] if matcher[2] else 0,
-                    "code": line[code_index:],
+            # end data block and clear.
+            if is_data and empty_pattern.match(line):
+                is_data = False
+                is_line_found = False
+                profile_data_list.append(buf)
+                buf = {
+                    "file_name": None,
+                    "func_name": None,
+                    "total_time": None,
+                    "lines": [],
                 }
-                buf["lines"].append(line_data)
-    # least
-    if buf:
-        profile_data_list.append(buf)
+            if is_data:
+                if file_pattern.match(line):
+                    buf["file_name"] = file_pattern.match(line).groups()[0]
+                if name_pattern.match(line):
+                    buf["func_name"] = name_pattern.match(line).groups()[0]
+                if time_pattern.match(line):
+                    buf["total_time"] = time_pattern.match(line).groups()[0]
+
+                # get line profile data
+                if line_pattern.match(line):
+                    if not is_line_found:
+                        code = line_pattern.match(line).groups()[-1]
+                        # save start point of code column. because python code have many space.
+                        code_index = line.find(code)
+                        is_line_found = True
+                    matcher = line_pattern.match(line).groups()
+                    line_data = {
+                        "line": matcher[0],
+                        "hits": matcher[1] if matcher[1] else 0,
+                        "time": matcher[2] if matcher[2] else 0,
+                        "code": line[code_index:],
+                    }
+                    buf["lines"].append(line_data)
+        # least
+        if buf:
+            profile_data_list.append(buf)
 
     return profile_data_list
 
@@ -349,7 +360,7 @@ def create_report(base_data, columns, report_name):
                     else:
                         row_data_list.append(str(0).rjust(max_length_dict[col]))
 
-            f.write("{}\n".format("  ".join(row_data_list)))
+            f.write("{}\n".format("  ".join(row_data_list).rstrip()))
 
 
 def parse_exclude_patterns(raw_pattern_list):
@@ -364,7 +375,7 @@ def parse_exclude_patterns(raw_pattern_list):
     return [(x.split(":")[0], int(x.split(":")[1])) for x in raw_pattern_list]
 
 
-def report(db, report_file_name_prefix, exclude_pattern_list):
+def report(db, report_file_name_prefix, exclude_pattern_list, is_verbose):
     """
     一般的な観点でのレポートを出力する。現時点では以下の2種類
 
@@ -374,9 +385,11 @@ def report(db, report_file_name_prefix, exclude_pattern_list):
     :param DbClass db: temporary database
     :param str report_file_name_prefix: report name prefix
     :param list exclude_pattern_list:
+    :param bool is_verbose: 行データレポートでmin, maxを含めるか
     :return:
     """
     # 関数ごとに経過時間や平均などを集計
+    summary_columns = ["file_name", "func_name", "total_time", "avg_time", "min_time", "max_time", "call_count"]
     func_list_with_time_sql = """
     select
         file_name,
@@ -396,13 +409,12 @@ def report(db, report_file_name_prefix, exclude_pattern_list):
     """
 
     # すべての行単位で集計
+    line_data_columns = ["file_name", "line", "avg_per_time", "hits", "total_time", "graph", "code"]
     whole_line_with_time_sql = """
     select
         file_name,
         line,
         sum(hits) as hits,
-        round(min(cast(time as float) / hits), 3) as min_time,
-        round(max(cast(time as float) / hits), 3) as max_time,
         round(sum(cast(time as float))/ sum(hits), 3) as avg_per_time,
         sum(time) as total_time,
         (
@@ -422,6 +434,35 @@ def report(db, report_file_name_prefix, exclude_pattern_list):
     order by
         1, 2
     """
+    if is_verbose:
+        line_data_columns = ["file_name", "line", "min_time", "max_time",
+                             "avg_per_time", "hits", "total_time", "graph","code"]
+        whole_line_with_time_sql = """
+        select
+            file_name,
+            line,
+            sum(hits) as hits,
+            round(min(cast(time as float) / hits), 3) as min_time,
+            round(max(cast(time as float) / hits), 3) as max_time,
+            round(sum(cast(time as float))/ sum(hits), 3) as avg_per_time,
+            sum(time) as total_time,
+            (
+                select
+                    code
+                from
+                    profile_line_data
+                where
+                    file_name = d.file_name
+                and line = d.line
+                limit 1
+            ) as code
+        from
+            profile_line_data d
+        group by
+            file_name, line
+        order by
+            1, 2
+        """
 
     # sqlite.Row is better, but i need dict.(ie. add custom column data)
     summary_data = [dict(row) for row in db.execute(func_list_with_time_sql).fetchall()]  # type: list[dict]
@@ -449,19 +490,19 @@ def report(db, report_file_name_prefix, exclude_pattern_list):
     # create summary report.
     create_report(
         base_data=summary_data,
-        columns=["file_name", "func_name", "total_time", "avg_time", "min_time", "max_time", "call_count"],
+        columns=summary_columns,
         report_name="{}_summary_data.log".format(report_file_name_prefix)
     )
     # create line report.
     create_report(
         base_data=line_data,
-        columns=["file_name", "line", "min_time", "max_time", "avg_per_time", "hits", "total_time", "graph", "code"],
+        columns=line_data_columns,
         report_name="{}_line_data.log".format(report_file_name_prefix)
     )
 
 
 def main():
-    target_file_name, target_db_name, report_name_prefix, exclude_patterns = init()
+    target_file_name, target_db_name, report_name_prefix, exclude_patterns, is_verbose = init()
     # テキスト形式のプロファイルログをDictに変換
     parsed_profile_data = parse(target_file_name)
     # 一旦SQLiteに格納し、各種集計・分析後にレポート出力
@@ -470,7 +511,7 @@ def main():
         prefix = target_file_name
         if report_name_prefix:
             prefix = report_name_prefix
-        report(tmp_db, prefix, exclude_patterns)
+        report(tmp_db, prefix, exclude_patterns, is_verbose)
 
 
 if __name__ == "__main__":

@@ -121,12 +121,14 @@ graph列はレポート内の最大時間との比率を`*`で表現していま
 |hits| hit count the line |
 |total_time| Avg * Hits |
 
+なお、min_time,max_timeは`--verbose`を指定した場合のみ出力されます。
+
 #### excludeオプション
 
 最も時間がかかっている箇所をチューニングするのが原則ですが、そのポイントを諦める場合に使用します。
 
 ```sh
-$ python wlreporter.py -f sample/small.log  -e /home/XXXXXXXXXXXXXX/python/app.py:218
+$ wlreporter -f sample/small.log  -e /home/XXXXXXXXXXXXXX/python/app.py:218
 ```
 
 本例の場合、`/home/XXXXXXXXXXXXXX/python/app.py`の218行目はGraph列の計算に含まれなくなります。
@@ -155,16 +157,17 @@ $ python wlreporter.py -f sample/small.log  -e /home/XXXXXXXXXXXXXX/python/app.p
 幾つかオプションがあります。
 
 ```
-denzownoMacBook-Pro:wsgi_lineprof_reporter denzow$ python wlreporter.py --help
-usage: wlreporter.py [-h] [-v] -f TARGET_FILE [-d DB_NAME]
-                     [-r REPORT_NAME_PREFIX]
-                     [-e [EXCLUDE_PATTERNS [EXCLUDE_PATTERNS ...]]]
+$ wlreporter -h
+usage: wlreporter [-h] [-V] [-v] -f TARGET_FILE [-d DB_NAME]
+                  [-r REPORT_NAME_PREFIX]
+                  [-e [EXCLUDE_PATTERNS [EXCLUDE_PATTERNS ...]]]
 
 This script is parsing wsgi_lineprof result
 
 optional arguments:
   -h, --help            show this help message and exit
-  -v, --version         show program's version number and exit
+  -V, --version         show program's version number and exit
+  -v, --verbose         get verbose line data report.
   -f TARGET_FILE, --file TARGET_FILE
                         target line profiler log file
   -d DB_NAME, --db-name DB_NAME
