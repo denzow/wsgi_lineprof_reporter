@@ -372,7 +372,7 @@ def parse_exclude_patterns(raw_pattern_list):
     if not raw_pattern_list:
         return []
     # line no cast to int. because comparing easily.
-    return [(x.split(":")[0], int(x.split(":")[1])) for x in raw_pattern_list]
+    return [(x.split(":")[0], "*" if x.split(":")[1] == "*" else int(x.split(":")[1])) for x in raw_pattern_list]
 
 
 def report(db, report_file_name_prefix, exclude_pattern_list, is_verbose):
@@ -473,7 +473,7 @@ def report(db, report_file_name_prefix, exclude_pattern_list, is_verbose):
     exclude_pattern_data = parse_exclude_patterns(exclude_pattern_list)
     if exclude_pattern_data:
         max_time = max([row["total_time"] for row in line_data
-                        if (row["file_name"], row["line"]) not in exclude_pattern_data])
+                        if (row["file_name"], "*") not in exclude_pattern_data and (row["file_name"], row["line"]) not in exclude_pattern_data])
     else:
         max_time = max([row["total_time"] for row in line_data])
 
